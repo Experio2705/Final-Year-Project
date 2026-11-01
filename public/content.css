@@ -1,0 +1,20 @@
+.privacy-assistant-error {
+    color: #dc2626 !important;
+    font-size: 12px !important;
+    margin: 5px 0 !important;
+    font-family: Arial, sans-serif !important;
+}
+
+input.privacy-assistant-invalid,
+textarea.privacy-assistant-invalid,
+select.privacy-assistant-invalid {
+    border: 2px solid #ef4444 !important;
+    outline: 1px solid #ef4444 !important;
+}
+
+input.privacy-assistant-valid,
+textarea.privacy-assistant-valid,
+select.privacy-assistant-valid {
+    border: 2px solid #16a34a !important;
+    outline: 1px solid #16a34a !important;
+}

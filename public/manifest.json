@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Fill Buddy",
+  "version": "1.0.0",
+  "description": "Privacy-preserving browser form assistant",
+
+  "permissions": ["activeTab"],
+
+  "action": {
+    "default_popup": "index.html"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
