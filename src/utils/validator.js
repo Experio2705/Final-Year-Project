@@ -118,7 +118,11 @@ export function identifyFieldType(field) {
     }
 
     // Name
-    if (/full[_\s-]*name|first[_\s-]*name|last[_\s-]*name/.test(fieldInfo)) {
+    // Name
+    if (
+        /\bname\b/.test(fieldInfo) ||
+        /first[_\s-]*name|last[_\s-]*name|middle[_\s-]*name/.test(fieldInfo)
+    ) {
         return "name";
     }
 
@@ -134,7 +138,12 @@ function validateRadioGroup(field) {
     const name = field.name;
 
     if (!name) {
-        return { valid: true, error: null, suggestion: null };
+        return {
+            valid: true,
+            verified: false,
+            error: null,
+            suggestion: null
+        };
     }
 
     const group = document.querySelectorAll(
@@ -152,7 +161,12 @@ function validateRadioGroup(field) {
         };
     }
 
-    return { valid: true, error: null, suggestion: null };
+    return {
+        valid: true,
+        verified: isSelected,
+        error: null,
+        suggestion: null
+    };
 }
 
 export function validateField(field) {
@@ -268,6 +282,7 @@ export function validateField(field) {
             suggestion: "Enter a valid email address, such as name@example.com."
             };
         }
+        verified = true;
     }
     // Semantic phone validation
     if (fieldType === "phone" && value !== "") {
@@ -281,6 +296,7 @@ export function validateField(field) {
             suggestion: "Enter a valid 10-digit Indian mobile number."
          };
         }
+         verified = true;
     }
     // Semantic URL validation
     if (fieldType === "url" && value !== "") {
@@ -299,6 +315,7 @@ export function validateField(field) {
             suggestion: "Enter a valid website address, such as https://example.com."
             };
         }
+         verified = true;
     }
     // Semantic password validation
     if (fieldType === "password" && value !== "") {
@@ -310,8 +327,12 @@ export function validateField(field) {
             suggestion: "Use at least 8 characters."
             };
         }
+         verified = true;
     }
-
+// Radio group validation
+    if (field.type === "radio") {
+        return validateRadioGroup(field);
+    }
     // File validation
 if (field.type === "file") {
 
@@ -368,15 +389,12 @@ if (field.type === "file") {
             };
         }
     }
-    // Radio group validation
-    if (field.type === "radio") {
-        return validateRadioGroup(field);
-    }
-
         return {
         valid: true,
+        verified: true,
         error: null,
         suggestion: null
+
         };
     }
 
@@ -394,6 +412,9 @@ if (field.type === "file") {
                 suggestion: "Please select an option from the dropdown."
             };
         }   
+        if (selectedOption && selectedOption.value.trim() !== "") {
+            verified = true;
+        }
     }
 
     // Checkbox validation
@@ -409,12 +430,43 @@ if (field.type === "file") {
 
         return {
             valid: true,
+            verified: true,
             error: null,
             suggestion: null
+
         };
     }
+    // Semantic name validation
+    if (fieldType === "name" && value !== "") {
+
+    // Allow international letters, spaces, hyphens and apostrophes
+//         console.log("Name validation check:", {
+//     fieldType,
+//     value,
+//     fieldName: field.name,
+//     fieldId: field.id
+// });
+        const namePattern = /^[\p{L}\p{M}]+(?:[ '\u2019-][\p{L}\p{M}]+)*$/u;
+
+        if (!namePattern.test(value)) {
+            // console.log("Name pattern result:", namePattern.test(value));
+            return {
+                valid: false,
+                error: "Invalid name",
+                suggestion: "Enter a name using letters, spaces, hyphens or apostrophes."
+            };
+        }
+         verified = true;
+    }
+    console.log({
+    field: field.name || field.id,
+    value: field.value,
+    fieldType,
+    validity: field.validity.valid
+});
     return {
         valid: true,
+        verified: false,
         error: null,
         suggestion: null
     };
@@ -450,11 +502,11 @@ export function scanFormFields() {
 
     fields.forEach((field, index) => {
 
-        console.log(
-    field.name || field.id || field.placeholder,
-    "=>",
-    identifyFieldType(field)
-);
+//         console.log(
+//     field.name || field.id || field.placeholder,
+//     "=>",
+//     identifyFieldType(field)
+// );
         if (field.disabled) return;
 
         // Ignore ordinary search bars
@@ -462,6 +514,19 @@ export function scanFormFields() {
 
         // Ignore fields in hidden steps or hidden sections
         if (!isVisible(field)) return;
+
+        // Avoid validating the same radio group multiple times
+    if (field.type === "radio") {
+        const previousRadio = fields
+            .slice(0, index)
+            .some(previous =>
+                previous.type === "radio" &&
+                previous.name === field.name &&
+                previous.form === field.form
+            );
+
+            if (previousRadio) return;
+        }
 
         const result = validateField(field);
 
@@ -475,8 +540,9 @@ export function scanFormFields() {
         results.push({
             index,
             label,
-            type: field.type || field.tagName.toLowerCase(),
+            type: identifyFieldType(field),
             valid: result.valid,
+            verified: result.verified ?? false,
             error: result.error,
             suggestion: result.suggestion
         });

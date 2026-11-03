@@ -15,7 +15,7 @@ host.id = "fill-buddy-host";
 const shadow = host.attachShadow({ mode: "open" });
 
 // 2. Create sidebar UI
-shadow.innerHTML = `ok
+shadow.innerHTML = `
     <style>
         ${panelStyles}
     </style>
@@ -165,6 +165,13 @@ function renderResults() {
 
     const errors = results.filter(field => !field.valid);
 
+    const verified = results.filter(
+        field => field.valid && field.verified
+    );
+
+    const unverified = results.filter(
+        field => field.valid && !field.verified
+    );
     resultsContainer.replaceChildren();
 
     const stats = document.createElement("div");
@@ -185,7 +192,9 @@ function renderResults() {
             : 0
         ],
         ["Fields", results.length],
-        ["Errors", errors.length]
+        ["Verified", verified.length],
+        ["Errors", errors.length],
+        ["Unverified", unverified.length]
     ];
 
     values.forEach(([label, value]) => {
@@ -206,42 +215,59 @@ function renderResults() {
 
     resultsContainer.appendChild(stats);
 
+    function renderFieldSection(title, fields, status) {
+    const section = document.createElement("div");
+
+    const heading = document.createElement("h3");
+    heading.textContent = `${title} (${fields.length})`;
+
+    section.appendChild(heading);
+
+    if (fields.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No fields in this category.";
+        section.appendChild(empty);
+    }
+
+    fields.forEach(field => {
+            const item = document.createElement("div");
+            item.className = `field-status ${status}`;
+
+            const label = document.createElement("strong");
+            label.textContent = field.label;
+
+            item.appendChild(label);
+
+            if (status === "invalid") {
+                const error = document.createElement("p");
+                error.textContent = field.error;
+
+                const suggestion = document.createElement("small");
+                suggestion.textContent = field.suggestion || "";
+
+                item.append(error, suggestion);
+            }
+
+            section.appendChild(item);
+        });
+
+        resultsContainer.appendChild(section);
+    }
+
+    // Display detected issues heading
     const title = document.createElement("h3");
     title.className = "errors-title";
-    title.textContent = "Detected Issues";
+    title.textContent = "Validation Results";
 
     resultsContainer.appendChild(title);
 
-    if (errors.length === 0) {
+    // Display each category exactly once
+    renderFieldSection("Verified Fields", verified, "verified");
 
-        const success = document.createElement("div");
-        success.className = "success";
-        success.textContent = "No validation errors found!";
+    renderFieldSection("Invalid Fields", errors, "invalid");
 
-        resultsContainer.appendChild(success);
-        return;
+    renderFieldSection("Unverified Fields", unverified, "unverified");
     }
-
-    errors.forEach(item => {
-
-        const card = document.createElement("div");
-        card.className = "error-card";
-
-        const label = document.createElement("strong");
-        label.textContent = item.label;
-
-        const error = document.createElement("p");
-        error.textContent = item.error;
-
-        const suggestion = document.createElement("small");
-        suggestion.textContent = item.suggestion;
-
-        card.append(label, error, suggestion);
-
-        resultsContainer.appendChild(card);
-
-    });
-}
 
 // 7. Scan button
 scanButton.addEventListener("click", () => {
@@ -264,7 +290,11 @@ scanButton.addEventListener("click", () => {
 function handleFieldValidation(event) {
     if (!inspectionActive) return;
     const field = event.target;
-
+//     console.log("Dynamic field validation:", {
+//     value: event.target.value,
+//     type: event.target.type,
+//     name: event.target.name
+// });
     if (
         !field.matches("input, textarea, select") ||
         field.disabled ||
@@ -275,7 +305,7 @@ function handleFieldValidation(event) {
     }
 
     const result = validateField(field);
-
+    // console.log("Dynamic validation result:", result);
     const oldMessage = field.nextElementSibling;
 
     if (
@@ -290,20 +320,23 @@ function handleFieldValidation(event) {
     );
 
     if (!result.valid) {
-
         field.classList.add("privacy-assistant-invalid");
 
         const message = document.createElement("div");
-
         message.className = "privacy-assistant-error";
         message.textContent = result.suggestion;
 
         field.insertAdjacentElement("afterend", message);
 
-    } else {
-
+    } 
+    else if (result.verified) {
         field.classList.add("privacy-assistant-valid");
-
+    } 
+    else {
+        field.classList.remove(
+            "privacy-assistant-invalid",
+            "privacy-assistant-valid"
+        );
     }
 
     // Refresh sidebar if it is open
@@ -315,12 +348,28 @@ function handleFieldValidation(event) {
 document.addEventListener("input", handleFieldValidation);
 document.addEventListener("change", handleFieldValidation);
 
-const validationObserver = new MutationObserver(() => {
+const validationObserver = new MutationObserver((mutations) => {
+    if (!inspectionActive) return;
 
-    if (panel.classList.contains("open")) {
+    let newFieldsDetected = false;
+
+    mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+            if (
+                node.matches?.("input, textarea, select") ||
+                node.querySelector?.("input, textarea, select")
+            ) {
+                newFieldsDetected = true;
+            }
+        });
+    });
+
+    if (newFieldsDetected && panel.classList.contains("open")) {
         renderResults();
     }
-
 });
 
 validationObserver.observe(document.documentElement, {
